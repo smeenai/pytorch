@@ -1,7 +1,7 @@
 # Owner(s): ["oncall: quantization"]
 
 import re
-import unittest
+import contextlib
 from pathlib import Path
 
 import torch
@@ -11,6 +11,7 @@ from torch.testing._internal.common_quantization import (
     QuantizationTestCase,
     SingleLayerLinearModel,
 )
+from torch.testing._internal.common_quantized import override_quantized_engine
 from torch.testing._internal.common_utils import IS_ARM64
 
 
@@ -108,21 +109,23 @@ class TestQuantizationDocs(QuantizationTestCase):
             expr = compile(code, "test", "exec")
             exec(expr, global_inputs)
 
-    @unittest.skipIf(IS_ARM64, "Not working on arm")
+
     def test_quantization_doc_ptdq(self):
         path_from_pytorch = "docs/source/quantization.rst"
         unique_identifier = "PTDQ API Example::"
-        code = self._get_code(path_from_pytorch, unique_identifier)
-        self._test_code(code)
+        with override_quantized_engine("qnnpack") if IS_ARM64 else contextlib.nullcontext():
+            code = self._get_code(path_from_pytorch, unique_identifier)
+            self._test_code(code)
 
-    @unittest.skipIf(IS_ARM64, "Not working on arm")
+
     def test_quantization_doc_ptsq(self):
         path_from_pytorch = "docs/source/quantization.rst"
         unique_identifier = "PTSQ API Example::"
-        code = self._get_code(path_from_pytorch, unique_identifier)
-        self._test_code(code)
+        with override_quantized_engine("qnnpack") if IS_ARM64 else contextlib.nullcontext():
+            code = self._get_code(path_from_pytorch, unique_identifier)
+            self._test_code(code)
 
-    @unittest.skipIf(IS_ARM64, "Not working on arm")
+
     def test_quantization_doc_qat(self):
         path_from_pytorch = "docs/source/quantization.rst"
         unique_identifier = "QAT API Example::"
@@ -132,27 +135,27 @@ class TestQuantizationDocs(QuantizationTestCase):
 
         input_fp32 = torch.randn(1, 1, 1, 1)
         global_inputs = {"training_loop": _dummy_func, "input_fp32": input_fp32}
+        with override_quantized_engine("qnnpack") if IS_ARM64 else contextlib.nullcontext():
+            code = self._get_code(path_from_pytorch, unique_identifier)
+            self._test_code(code, global_inputs)
 
-        code = self._get_code(path_from_pytorch, unique_identifier)
-        self._test_code(code, global_inputs)
 
-    @unittest.skipIf(IS_ARM64, "Not working on arm")
     def test_quantization_doc_fx(self):
         path_from_pytorch = "docs/source/quantization.rst"
         unique_identifier = "FXPTQ API Example::"
 
         input_fp32 = SingleLayerLinearModel().get_example_inputs()
         global_inputs = {"UserModel": SingleLayerLinearModel, "input_fp32": input_fp32}
+        with override_quantized_engine("qnnpack") if IS_ARM64 else contextlib.nullcontext():
+            code = self._get_code(path_from_pytorch, unique_identifier)
+            self._test_code(code, global_inputs)
 
-        code = self._get_code(path_from_pytorch, unique_identifier)
-        self._test_code(code, global_inputs)
 
-    @unittest.skipIf(IS_ARM64, "Not working on arm")
     def test_quantization_doc_custom(self):
         path_from_pytorch = "docs/source/quantization.rst"
         unique_identifier = "Custom API Example::"
 
         global_inputs = {"nnq": torch.nn.quantized}
-
-        code = self._get_code(path_from_pytorch, unique_identifier)
-        self._test_code(code, global_inputs)
+        with override_quantized_engine("qnnpack") if IS_ARM64 else contextlib.nullcontext():
+            code = self._get_code(path_from_pytorch, unique_identifier)
+            self._test_code(code, global_inputs)
