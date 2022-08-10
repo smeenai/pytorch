@@ -44,6 +44,8 @@ __all__ = [
     "tanhshrink",
     "threshold",
     "glu",
+    "pairwise_distance",
+    "pdist",
 ]
 
 Tensor = torch.Tensor
@@ -577,3 +579,38 @@ def glu(a: TensorLikeType, dim: int = -1) -> TensorLikeType:
     b, c = torch.tensor_split(a, 2, dim)
 
     return b * torch.sigmoid(c)
+
+
+@register_decomposition(torch.ops.aten.pairwise_distance)
+@elementwise_type_promotion_wrapper(
+    type_promoting_args=("x1", "x2"),
+    type_promotion_kind=utils.ELEMENTWISE_TYPE_PROMOTION_KIND.DEFAULT,
+)
+@out_wrapper()
+def pairwise_distance(
+    x1: TensorLikeType,
+    x2: TensorLikeType,
+    p: NumberType = 2.0,
+    eps: NumberType = 1e-6,
+    keepdim=False,
+) -> TensorLikeType:
+    return torch.linalg.vector_norm(x1 - x2 + eps, ord=p, dim=-1, keepdim=keepdim)
+
+
+@register_decomposition(torch.ops.aten.pdist)
+@elementwise_type_promotion_wrapper(
+    type_promoting_args=("a",),
+    type_promotion_kind=utils.ELEMENTWISE_TYPE_PROMOTION_KIND.DEFAULT,
+)
+@out_wrapper()
+def pdist(a: TensorLikeType, p: int = 2) -> TensorLikeType:
+    check(a.ndim == 2, lambda: f"pdist only supports 2D tensors, got: {a.ndim}D")
+    check(p >= 0, lambda: "pdist only supports non-negative p values")
+    # We add a length 1 dimension so that broadcasting will compute all possible
+    # pairs of differences when we take the difference
+    # Note this could also be done with a[:,None]-a but there was no refs.__getitem__ when this was written
+    new_shape = (a.shape[0], 1, a.shape[1])
+    t = torch.linalg.vector_norm(a.reshape(new_shape) - a, ord=p, dim=2)
+    i = torch.triu_indices(t.shape[0], t.shape[1], offset=1, device=a.device)
+
+    return t.take(i[0] * t.shape[0] + i[1])
